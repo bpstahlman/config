@@ -1,9 +1,3 @@
-# Pathogen dir
-# Rationale: Plugins managed as individual submodules
-vim/.vim/bundle/
-fzf/.fzf/
-
-
 # vim undo
 ..*.un~
 # vim swap

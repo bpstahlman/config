@@ -1,0 +1,27 @@
+[submodule "vim/.vim/bundle/vim-undo-graph"]
+	path = vim/.vim/bundle/vim-undo-graph
+	url = git@github.com:bpstahlman/vim-undo-graph.git
+[submodule "vim/.vim/bundle/fzf.vim"]
+	path = vim/.vim/bundle/fzf.vim
+	url = https://github.com/junegunn/fzf.vim.git
+[submodule "vim/.vim/bundle/txtfmt"]
+	path = vim/.vim/bundle/txtfmt
+	url = https://github.com/bpstahlman/txtfmt.git
+[submodule "vim/.vim/bundle/vim-easymotion"]
+	path = vim/.vim/bundle/vim-easymotion
+	url = git://github.com/Lokaltog/vim-easymotion.git
+[submodule "vim/.vim/bundle/vim-fireplace"]
+	path = vim/.vim/bundle/vim-fireplace
+	url = git://github.com/tpope/vim-fireplace.git
+[submodule "vim/.vim/bundle/vim-fugitive"]
+	path = vim/.vim/bundle/vim-fugitive
+	url = git://github.com/tpope/vim-fugitive.git
+[submodule "vim/.vim/bundle/vim-repeat"]
+	path = vim/.vim/bundle/vim-repeat
+	url = git://github.com/tpope/vim-repeat.git
+[submodule "vim/.vim/bundle/vim-sexp"]
+	path = vim/.vim/bundle/vim-sexp
+	url = https://github.com/bpstahlman/vim-sexp.git
+[submodule "fzf/.fzf"]
+	path = fzf/.fzf
+	url = https://github.com/junegunn/fzf.git
