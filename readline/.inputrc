@@ -1,0 +1,6 @@
+set editing-mode vi
+#set convert-meta on
+#set input-meta on
+"\C-e": shell-expand-line
+
+"\M-.": yank-last-arg
