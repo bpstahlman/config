@@ -1,29 +1,55 @@
-# Configure a color prompt containing username/host/cwd.
-PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+if [[ $- == *i* ]]; then
+	# Caveat: These commands may fail if we're not running in a tty.
+	# Note that bashrc isn't really intended for non-interactive use anyways.
 
-# This should be the default.
+	# Obviate need for .inputrc
+	set -o vi
+
+	# Create an informative, multi-line prompt.
+	# TODO: Add some colors...
+	PS1='\e[1;92m|\e[0m \e[0;96m(\!)\e[0m - \e[0;34m\t\e[0m - \e[0;32m\u@\h\e[0m:  \e[0;34m\w\e[0m\n\$ '
+
+	# Reclaim \cS for readline usage.
+	# Rationale: The readline usage is much more common than the flow-control
+	# usage, and \cS is prime keyboard real-estate.
+	# Note: CTRL-^ is the same as CTRL-6, so shift key isn't necessary.
+	stty stop ^^
+fi
+
+# Make sure my personal bin comes first.
+PATH=~/bin:$PATH
+
+# Prevent last terminal closed from overwriting history of terminals closed earlier...
 shopt -s histappend
-#[[ -r ~/cac-enabled-git-env.sh ]] && . ~/cac-enabled-git-env.sh
+# Re-edit a failed history expansion.
+shopt -s histreedit
+# Verify results of history expansion before execution.
+# Note: Someday, may want to disable this...
+shopt -s histverify
+# Save multi-line commands with embedded newlines.
+shopt -s lithist
+# Enable extended globbing
+shopt -s extglob
 
-# Prepend rakudobrew to PATH.
-export PATH=~/.rakudobrew/bin:$PATH
+# Remove older occurrences of same command.
+HISTCONTROL=erasedups
+HISTTIMEFORMAT='%F %T: '
+HISTSIZE=5000
+# Note: Make HISTFILESIZE significantly larger than what we can hold within a
+# session.
+# Rationale: Facilitate recovery without slowing down normal usage.
+HISTFILESIZE=50000
 
-# Prepend Rust's cargo bin dir to PATH (for packages installed with `cargo
-# install')
-PATH+=~/.local/bin:~/bin
-PATH+=~/.perl6/bin:/opt/rakudo-pkg/bin:/opt/rakudo-pkg/share/perl6/site/bin
-# Put latest racket in front of the ancient one installed by ubuntu package
-# manager.
-# TODO: Probably just remove Ubuntu's.
-PATH+=~/racket/bin
-PATH+=~/anarki
-PATH+=~/bin
-PATH+=~/.cargo/bin
-export PATH
-
+# TODO: Find out what this is...
 export STACK_INSTALL_PATH=~/.local/bin
 
-# Note: Provide an fzf overload of readline's reverse incremental history
-# search on C-R (which readline's vi defaults map to readline's
-# reverse-search-history).
+# Source local bashrc(s) (if they exist)
+if [ -f /etc/bashrc.local ]; then
+    . /etc/bashrc.local
+fi
+if [ -f ~/.bashrc.local ]; then
+    . ~/.bashrc.local
+fi
+
+# Enable fzf goodies in bash shell.
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
