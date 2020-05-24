@@ -135,36 +135,36 @@ let g:slimv_swank_cmd = '! xterm -e sbcl --load /home/bstahlman/.vim/bundle/slim
 " <M-[> <M->>
 " Note that while <M-[> makes sense due to its use in terminal escape
 " sequences, I'm not sure why <M->> doesn't work.
-set <M-J>=J
-set <M-j>=j
-set <M-k>=k
-set <M-K>=K
-set <M-b>=b
-set <M-w>=w
-set <M-g>=g
-set <M-e>=e
-set <M-N>=N
-set <M-n>=n
-set <M-,>=,
-set <M-.>=.
-set <M-=>==
-set <M-->=-
-set <M-I>=I
-set <M-A>=A
-set <M-@>=@
-set <M-?>=?
-set <M-C>=C
-set <M-c>=c
-set <M-O>=O
-set <M-o>=o
-set <M-H>=H
-set <M-L>=L
-set <M-h>=h
-set <M-l>=l
-set <M-t>=t
-set <M-T>=T
-set <M-p>=p
-set <M-P>=P
+"set <M-J>=J
+"set <M-j>=j
+"set <M-k>=k
+"set <M-K>=K
+"set <M-b>=b
+"set <M-w>=w
+"set <M-g>=g
+"set <M-e>=e
+"set <M-N>=N
+"set <M-n>=n
+"set <M-,>=,
+"set <M-.>=.
+"set <M-=>==
+"set <M-->=-
+"set <M-I>=I
+"set <M-A>=A
+"set <M-@>=@
+"set <M-?>=?
+"set <M-C>=C
+"set <M-c>=c
+"set <M-O>=O
+"set <M-o>=o
+"set <M-H>=H
+"set <M-L>=L
+"set <M-h>=h
+"set <M-l>=l
+"set <M-t>=t
+"set <M-T>=T
+"set <M-p>=p
+"set <M-P>=P
 
 " Timeouts
 " Rationale: By default, ttimeout is disabled (-1), which can cause problems
@@ -182,7 +182,11 @@ set ttimeoutlen=100
 " advantage is that it would permit me to create multiple mappings to the same
 " command.
 " Single-key mappings: h, l, H, L
-let g:which_maps = 'meta'
+" IMPORTANT TODO: I've temporarily disabled the maps because 'meta' was
+" causing a noticeable delay whenever I hit Esc in a terminal. The problem is
+" that Vim converts a map for (eg) <M-x> to \ex, which means Vim must wait the
+" map timeout before concluding the <Esc> is not part of a map.
+let g:which_maps = 'none'
 let g:sexp_mode_toggle = '<C-K>'
 let g:sexp_mode_escape = ','
 let g:sexp_mode_initial_state = 0

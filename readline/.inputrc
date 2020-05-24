@@ -1,6 +1,34 @@
-set editing-mode vi
-#set convert-meta on
-#set input-meta on
-"\C-e": shell-expand-line
+# Important Note: On at least one of my systems, \M- doesn't work for meta
+# keys, not even when I've set *altSendsEscape and *altIsNotMeta in .Xdefaults
+# (or equivalent). On such systems, I've been able to get it working with these
+# readline variables. Note, however, that there may be advantages to setting
+# these sorts of things at the level of the X server itself, before any Unicode
+# character conversions have been performed...
+# TODO: Clean this up...
+#set convert-meta On
+#set input-meta On
 
-"\M-.": yank-last-arg
+set editing-mode vi
+set keymap vi-command
+"\C-x\C-r": re-read-init-file
+"\C-e": shell-expand-line
+# Rationale: vi-fetch-history is buggy: doesn't handle numeric argument
+# correctly, and generally goes to line 1 (i.e., *beginning* of history)
+"G": end-of-history
+# Non-incremental history search (for text before point)
+set keymap vi-insert
+"\C-x\C-r": re-read-init-file
+"\C-e": shell-expand-line
+"\C-p": history-search-backward
+"\C-n": history-search-forward
+"\e.": yank-last-arg
+"\C-y": yank
+"\e\C-y": yank-pop
+
+# Add dynamic-complete-history
+# Add yank-pop
+# \C-w Use unix-filename-rubout instead of default unix-word-rubout
+# Play with kill ring in vi mode - does it even exist?
+# Decide whether to keep flow-control as \C-s; if so, use \C-n for "forward" in all mappings.
+#
+# vim:ts=4:sw=4:noet:tw=80
