@@ -17,7 +17,8 @@ if [[ $- == *i* ]]; then
 fi
 
 # Make sure my personal bin comes first.
-PATH=~/bin:$PATH
+# TODO: Probably remove ~/bin in favor of ~/.local/bin
+PATH=~/bin:~/.local/bin:$PATH
 
 # Prevent last terminal closed from overwriting history of terminals closed earlier...
 shopt -s histappend
@@ -53,3 +54,5 @@ fi
 
 # Enable fzf goodies in bash shell.
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
+source /home/bstahlman/.config/broot/launcher/bash/br

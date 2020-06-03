@@ -95,3 +95,5 @@ bindkey -M vicmd '^xr' redisplay
 # vim:tw=120
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+source /home/bstahlman/.config/broot/launcher/bash/br

@@ -186,7 +186,7 @@ set ttimeoutlen=100
 " causing a noticeable delay whenever I hit Esc in a terminal. The problem is
 " that Vim converts a map for (eg) <M-x> to \ex, which means Vim must wait the
 " map timeout before concluding the <Esc> is not part of a map.
-let g:which_maps = 'none'
+let g:which_maps = 'single-key-expert'
 let g:sexp_mode_toggle = '<C-K>'
 let g:sexp_mode_escape = ','
 let g:sexp_mode_initial_state = 0

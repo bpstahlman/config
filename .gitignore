@@ -2,3 +2,9 @@
 ..*.un~
 # vim swap
 .*.sw*
+# Don't version control local installations.
+# Note: These .locals will typically appear within a stow project: e.g., dwm or tmux.
+.local/
+
+.bashrc.local
+.netrwhist

@@ -4,3 +4,5 @@ for f in ~/.bashrc ~/.profile; do
 	[[ -r $f ]] && . "$f"
 done
 
+
+source /home/bstahlman/.config/broot/launcher/bash/br
