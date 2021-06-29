@@ -5,4 +5,4 @@ for f in ~/.bashrc ~/.profile; do
 done
 
 
-source /home/bstahlman/.config/broot/launcher/bash/br
+#source /home/bstahlman/.config/broot/launcher/bash/br

@@ -17,8 +17,14 @@ if [[ $- == *i* ]]; then
 fi
 
 # Make sure my personal bin comes first.
+# TODO: Consider moving these PATH settings to ~/.bash_profile
 # TODO: Probably remove ~/bin in favor of ~/.local/bin
 PATH=~/bin:~/.local/bin:$PATH
+
+# Load pyenv.
+export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
 
 # Prevent last terminal closed from overwriting history of terminals closed earlier...
 shopt -s histappend
@@ -55,4 +61,4 @@ fi
 # Enable fzf goodies in bash shell.
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
-source /home/bstahlman/.config/broot/launcher/bash/br
+#source /home/bstahlman/.config/broot/launcher/bash/br

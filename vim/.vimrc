@@ -32,20 +32,119 @@ if has('persistent_undo')
 	set undodir=~/.vimundo,.
 endif
 
-
+" TODO: Perhaps a chooser function that considers term/gui, even
+" differentiating between different terminals, for which I may use different
+" (terminal) colorschemes.
 colorscheme default
+
 " This should be the Vim default, but isn't...
 filetype plugin indent on
 syntax enable
 
-"Use Pathogen to manage scripts
-"if exists('*pathogen#infect')
-	" TODO: Figure out why the if guard doesn't work.
-	call pathogen#infect('~/.vim/bundle/{}')
-"endif
+" Set some configuration variables with implications for plugins.
+
+" Intellisense/code completion
+let g:cfg_completion_plugin = 'ycm'
+
+" Specify a directory for plugins
+" - For Neovim: stdpath('data') . '/plugged'
+" - Avoid using standard Vim directory names like 'plugin'
+call plug#begin('~/.vim/plugged')
+
+" Make sure you use single quotes
+Plug 'bpstahlman/txtfmt', { 'frozen': 1 }
+Plug 'bpstahlman/vim-sexp', { 'frozen': 1 }
+
+" vim-lsp (language server platform)
+if g:cfg_completion_plugin == 'vim-lsp'
+	Plug 'prabirshrestha/async.vim'
+	Plug 'prabirshrestha/vim-lsp'
+elseif g:cfg_completion_plugin == 'ycm'
+	Plug 'ycm-core/YouCompleteMe', { 'do': './install.py --clangd-completer' }
+endif
+
+" Full path fuzzy file, buffer, mru, tag, ... finder for Vim
+"Plug 'kien/ctrlp'
+
+Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': { -> fzf#install() } }
+Plug 'junegunn/fzf.vim'
+
+" Shorthand notation; fetches https://github.com/junegunn/vim-easy-align
+"Plug 'junegunn/vim-easy-align'
+
+" Any valid git URL is allowed
+"Plug 'https://github.com/junegunn/vim-github-dashboard.git'
+
+" Multiple Plug commands can be written in a single line using | separators
+"Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets'
+
+" On-demand loading
+"Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' }
+"Plug 'tpope/vim-fireplace', { 'for': 'clojure' }
+
+" Using a non-default branch
+"Plug 'rdnetto/YCM-Generator', { 'branch': 'stable' }
+
+" Using a tagged release; wildcard allowed (requires git 1.9.2 or above)
+"Plug 'fatih/vim-go', { 'tag': '*' }
+
+" Plugin options
+"Plug 'nsf/gocode', { 'tag': 'v.20150303', 'rtp': 'vim' }
+
+" Plugin outside ~/.vim/plugged with post-update hook
+"Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
+
+" Unmanaged plugin (manually installed and updated)
+"Plug '~/my-prototype-plugin'
+
+" Initialize plugin system
+call plug#end()
 
 " Easymotion
 map <Space> <Plug>(easymotion-prefix)
+
+" Try to get sensible cursor shape in a terminal.
+if &term =~ '^xterm\|rxvt'
+  " blinking vertical bar
+  let &t_SI .= "\<Esc>[5 q"
+  " solid underscore
+  let &t_SR .= "\<Esc>[4 q"
+  " solid block
+  let &t_EI .= "\<Esc>[2 q"
+  " 1 or 0 -> blinking block
+  " 3 -> blinking underscore
+  " Recent versions of xterm (282 or above) also support
+  " 5 -> blinking vertical bar
+  " 6 -> solid vertical bar
+endif
+
+if g:cfg_completion_plugin == 'vim-lsp'
+	" If clangd is available, install autocommands that will configure Vim's omni
+	" completion to use it (via the vim-lsp plugin).
+	" Copied from Jonas Devlieghere's vim-lsp-clangd page:
+	" https://jonasdevlieghere.com/vim-lsp-clangd/
+	let g:lsp_log_verbose = 1
+	let g:lsp_log_file = '/tmp/vim-lsp.log'
+	if executable('clangd')
+		augroup lsp_clangd
+			autocmd!
+			autocmd User lsp_setup call lsp#register_server({
+						\ 'name': 'clangd',
+						\ 'cmd': {server_info->['clangd']},
+						\ 'whitelist': ['c', 'cpp', 'objc', 'objcpp'],
+						\ })
+			autocmd FileType c setlocal omnifunc=lsp#complete
+			autocmd FileType cpp setlocal omnifunc=lsp#complete
+			autocmd FileType objc setlocal omnifunc=lsp#complete
+			autocmd FileType objcpp setlocal omnifunc=lsp#complete
+		augroup end
+	endif
+elseif g:cfg_completion_plugin == 'ycm'
+endif
+
+" fzf config
+
+finish
 
 " -- FZF Customization --
 " Pull in the basic fzf vim support (which is required for fzf.vim plugin).
