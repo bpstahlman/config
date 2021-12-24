@@ -1,5 +1,7 @@
 " vim:ts=2:sw=2:noet
 
+let s:log_level = 0
+
 " Default configuration
 let s:fzf_config = {
 			\ 'get_files_cmd': 'git ls-files --recurse-submodules',
@@ -44,34 +46,25 @@ fu! s:create_fzf_cache(...)
 				\ 'files': [],
 				\ 'get_files_cmd': get(cfg, 'get_files_cmd', s:fzf_config.get_files_cmd),
 				\ 'file_list_file': s:calculate_flf_path(cfg),
-				\ 'patts': {'incl': [], 'excl': []},
+				\ 'paths': [],
 				\ 'globs': {'incl': [], 'excl': []},
 				\ 'very_magic': get(cfg, 'very_magic', s:fzf_config.very_magic),
 				\ 'ignore_case': get(cfg, 'ignore_case', s:fzf_config.ignore_case),
 				\ 'nul_separate_paths' : get(cfg, 'nul_separate_paths', s:fzf_config.very_magic)
 				\ }
 
-	" FIXME: Too many %s. Decide what get_globs should return...
 	fu! cache.get_rg_cmd(...) closure
 		" TODO: Use option to decide whether to use xargs or not...
 		let ret = printf('xargs -0a %s'
 		\   . ' rg --column --line-number --no-heading --color=always %s %s'
 		\   , s:fcache.file_list_file.path
-		\   , s:fcache.get_globs()
-		\   , a:000->join())
-		echomsg "Running ripgrep: " . ret
+		\   , a:000->mapnew({i, p -> shellescape(p)})->join())
+		call s:Log("Ripgrep command: %s", ret)
 		return ret
 	endfu
 	fu! cache.get_edit_source_cmd() closure
 		return 'cat ' . self.file_list_file.path
 					\ . (self.nul_separate_paths ? ' | tr \\0 \\n' : '')
-	endfu
-	fu! cache.get_globs() closure
-		" FIXME: Make --glob-case-insensitive an option.
-		return
-					\ '--glob-case-insensitive '
-					\ . self.globs.incl->mapnew('"-g ''" . v:val . "''"')->join()
-					\ . self.globs.excl->mapnew('"-g ''!" . v:val . "''"')->join()
 	endfu
 	fu! cache.destroy() closure
 		echomsg "Bye!"
@@ -85,109 +78,73 @@ fu! s:create_fzf_cache(...)
 			endif
 		endif
 	endfu
-	fu! cache.apply_filters() closure
-		" Apply (or reapply) the filter
-		" !!!!!!!! UNDER CONSTRUCTION !!!!!
-		let ipatts = self.patts.incl
-		let epatts = self.patts.excl
-		let iglobs = s:GlobsToPatts(self.globs.incl)
-		let eglobs = s:GlobsToPatts(self.globs.excl)
-		echomsg "iglobs: " . string(iglobs)
-		call s:Log("Pre-filter: #files=%s", len(self.files))
-		let self.files = self.files->filter({
-					\ idx, path ->
-					\ ((ipatts->empty() && iglobs->empty()) ||
-					\  (!ipatts->empty() &&
-					\   ipatts->s:Any(path, self.very_magic, self.ignore_case)) ||
-					\  (!iglobs->empty() &&
-					\   iglobs->s:Any(path, self.very_magic, self.ignore_case))) &&
-					\ !((!epatts->empty() &&
-					\    epatts->s:Any(path, self.very_magic, self.ignore_case)) ||
-					\   (!eglobs->empty() &&
-					\    eglobs->s:Any(path, self.very_magic, self.ignore_case)))})
-		call s:Log("Post-filter: #files=%s", len(self.files))
+	fu! cache.build_file_list_cmd()
+		" TODO: Put the map in a lambda.
+		let iglobs = self.globs.incl
+					\ ->mapnew({i, s -> '-g ' . shellescape(s)})->join()
+		let eglobs = self.globs.excl
+					\ ->mapnew({i, s -> '-g ' . shellescape('!' . s)})->join()
+		let paths = self.paths
+					\ ->mapnew({i, s -> shellescape(s)})->join()
+		return printf('rg --files %s %s %s %s',
+					\ self.ignore_case ? '--glob-case-insensitive' : '',
+					\ iglobs,
+					\ eglobs,
+					\ paths)
 	endfu
 	fu! cache.refresh(...) closure
 		let force = a:0 && a:1
 		call s:Log("Refreshing cache force=%s dirty=%s...", force, self.dirty)
 		if force || self.dirty
-			" FIXME: Decide where to account for magic and case-sensitive.
-			if self.dirty >= 3
-				" Get the file list
-				"let get_files_cmd = printf('rg --files')
-				let get_files_cmd = printf('git ls-files --recurse-submodules')
-				call s:Log("Reading raw file list: %s", get_files_cmd)
-				let self.all_files = get_files_cmd->systemlist()
-			endif
-			if self.dirty >= 1
-				if self.dirty >= 2
-					" Make a copy of the unfiltered file list to be filtered in place.
-					let self.files = self.all_files[:]
-				endif
-				call s:Log("Applying filters...")
-				call self.apply_filters()
-				call s:Log("Writing file list to file: %s", self.file_list_file.path)
-				call writefile(
-							\ (self.nul_separate_paths
-							\ ? [self.files->join("\n")]
-							\ : self.files), self.file_list_file.path)
-			endif
+			" Get the file list
+			let get_files_cmd = self.build_file_list_cmd()
+			call s:Log("Reading raw file list: %s", get_files_cmd)
+			let self.files = get_files_cmd->systemlist()
+			call s:Log("Writing file list to file: %s", self.file_list_file.path)
+			call writefile(
+						\ (self.nul_separate_paths
+						\ ? [self.files->join("\n")]
+						\ : self.files), self.file_list_file.path)
 			let self.dirty = 0
 		endif
 	endfu
-	fu! cache.clear_files(dirty_level) closure
-		let self.dirty = a:dirty_level
+	fu! cache.clear() closure
+		let self.dirty = 1
 	endfu
 	" TODO: Consider whether this should be combined with previous somehow...
 	fu! cache.clear_filters() closure
-		let self.dirty = 2
-		let self.patts.incl = []
-		let self.patts.excl = []
+		let self.dirty = 1
+		let self.paths = []
 		let self.globs.incl = []
 		let self.globs.excl = []
 	endfu
-	fu! cache.update_dirty(type, add, empty)
-		" incl   add   empty   max   description
-		" ---------------------------------------------
-		" 0      0       0     2     (removing exclude)
-		" 0      1       0     1     (adding exclude)
-		" 1      0       0     1     (removing include)
-		" 1      1       0     2     (adding include)
-		" 0      0       1     2     (no more excludes)
-		" 0      1       1     1     (adding exclude - N/A)
-		" 1      0       1     2     (no more includes)
-		" 1      1       1     2     (adding include)
-		let max = (a:type == 'incl') == !!a:add || a:empty ? 2 : 1
-		let self.dirty = [self.dirty, max]->max()
+	fu! cache.add_paths(...) closure
+		let self.paths = self.paths->extend(
+			\ a:000[:]->filter({idx, path -> self.paths->index(path) < 0}))
+		let self.dirty = 1
 	endfu
-	fu! cache.add_patts(type, ...) closure
-		let self.patts[a:type] = self.patts[a:type]->extend(
-			\ a:000[:]->filter({idx, patt -> self.patts[a:type]->index(patt) < 0}))
-		call self.update_dirty(a:type, 1, 0)
-	endfu
-	fu! cache.remove_patts(type, bang, ...) closure
+	fu! cache.remove_paths(bang, ...) closure
 		if (!a:0)
 			if a:bang
-				" Remove all patterns of specified type
-				let self.patts[a:type] = []
+				" Remove all paths.
+				let self.paths = []
 			else
-				echoerr "Must provide at least one pattern if <bang> is not provided."
+				echoerr "Must provide at least one path if <bang> is not provided."
 			endif
 		else
 			" Remove patterns provided as input.
-			let self.patts[a:type] = self.patts[a:type]->filter({
-						\ patt -> a:000->index(patt) >= 0 })
+			let self.paths = self.paths->filter({
+						\ path -> a:000->index(path) >= 0 })
 		endif
-		call self.update_dirty(a:type, 0, self.patts.empty())
+		let self.dirty = 1
 	endfu
 	fu! cache.add_globs(type, ...) closure
-		echomsg "Adding globs: " . string(a:000)
 		let self.globs[a:type] = self.globs[a:type]->extend(
 			\ a:000[:]->filter({idx, patt -> self.globs[a:type]->index(patt) < 0}))
-		call self.update_dirty(a:type, 1, 0)
+		let self.dirty = 1
 	endfu
 	fu! cache.remove_globs(type, bang, ...) closure
-		call self.update_dirty(a:type, 0)
+		let self.dirty = 1
 		if (!a:0)
 			if a:bang
 				" Remove all patterns of specified type
@@ -198,9 +155,9 @@ fu! s:create_fzf_cache(...)
 		else
 			" Remove patterns provided as input.
 			let self.globs[a:type] = self.globs[a:type]->filter({
-						\ patt -> a:000->index(patt) >= 0 })
+						\ glob -> a:000->index(glob) >= 0 })
 		endif
-		call self.update_dirty(a:type, 0, self.globs.empty())
+		let self.dirty = 1
 	endfu
 	return cache
 endfu
@@ -208,14 +165,14 @@ endfu
 let TEST = 0
 if TEST
 	let c = s:create_fzf_cache('ls')
-	echo "Adding patts for ^C and ^D but excluding [SR] and W"
-	call c.add_patts('incl', '^C', '^D')
-	call c.add_patts('excl', '[SR]', 'W')
+	echo "Adding paths for ^C and ^D but excluding [SR] and W"
+	call c.add_paths('incl', '^C', '^D')
+	call c.add_paths('excl', '[SR]', 'W')
 	echo c
 	echo "-----refresh()"
 	echo c.refresh()
 	echo "Adding patt for ^NTUSER"
- 	call c.add_patts('incl', '^NTUSER')
+ 	call c.add_paths('incl', '^NTUSER')
 	echo "-----refresh()"
 	echo c.refresh()
 endif
@@ -229,7 +186,7 @@ endfu
 " Make sure the fcache is cleaned up at shutdown.
 au! VimLeave s:fcache->destroy()
 
-
+	" Map for quickly finding a file to edit.
 nmap <leader>e
 	\ :call <SID>fcache().refresh() \|
 	\ :call fzf#run(fzf#wrap({
@@ -239,17 +196,15 @@ nmap <leader>e
 
 " TODO: Consider completion of submodule names.
 com -nargs=* Show echo !empty(<q-args>) ? [<f-args>]
-			\ ->filter({idx, val -> val != 'files' && val != 'all_files'})
+			\ ->filter({idx, val -> val != 'files' })
 			\ ->map({idx, val -> s:fcache[val]}) : s:fcache
 com -bang RebuildCache 
 			\ call s:fcache().destroy() |
 			\ let s:fcache = s:create_fzf_cache()
-com -bang ClearCache call s:fcache().clear_files("a:bang" == "!" ? 3 : 2)
+com -bang ClearCache call s:fcache().clear()
 com ClearFilters call s:fcache().clear_filters()
-com -nargs=+ AddInclPatts call s:fcache().add_patts('incl', <f-args>)
-com -nargs=+ AddExclPatts call s:fcache.add_patts('excl', <f-args>)
-com -bang -nargs=* RemoveInclPatts call s:fcache.remove_patts('incl', <bang>0, <f-args>)
-com -bang -nargs=* RemoveExclPatts call s:fcache.remove_patts('excl', <bang>0, <f-args>)
+com -nargs=+ AddPaths call s:fcache().add_paths(<f-args>)
+com -bang -nargs=* RemovePaths call s:fcache.remove_paths(<bang>0, <f-args>)
 com -nargs=+ AddInclGlobs call s:fcache().add_globs('incl', <f-args>)
 com -nargs=+ AddExclGlobs call s:fcache.add_globs('excl', <f-args>)
 com -bang -nargs=* RemoveInclGlobs call s:fcache.remove_globs('incl', <bang>0, <f-args>)
@@ -276,17 +231,6 @@ command! -bang -nargs=* Rg
   \   <bang>0)
 
 " Ancillary functions
-fu! s:Any(patts, s, vmagic, icase)
-	for patt in a:patts
-		if a:s =~ (a:vmagic ? '\v' : '') . (a:icase ? '\c' : '')  . patt
-			return 1
-		endif
-	endfor
-	return 0
-endfu
-fu! s:GlobsToPatts(globs)
-	return a:globs[:]->map({i, v -> v->glob2regpat()})
-endfu
 
 fu! s:Log(fmt, ...)
 	if s:log_level > 0
