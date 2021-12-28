@@ -69,6 +69,11 @@ endif
 Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': { -> fzf#install() } }
 Plug 'junegunn/fzf.vim'
 
+Plug 'easymotion/vim-easymotion'
+" Caveat: This plugin supersedes vim-multiple-cursors, which has serious
+" issues with undo/redo and is no longer maintained.
+Plug 'mg979/vim-visual-multi', {'branch': 'master'}
+
 " Shorthand notation; fetches https://github.com/junegunn/vim-easy-align
 "Plug 'junegunn/vim-easy-align'
 
@@ -234,36 +239,36 @@ let g:slimv_swank_cmd = '! xterm -e sbcl --load /home/bstahlman/.vim/bundle/slim
 " <M-[> <M->>
 " Note that while <M-[> makes sense due to its use in terminal escape
 " sequences, I'm not sure why <M->> doesn't work.
-"set <M-J>=J
-"set <M-j>=j
-"set <M-k>=k
-"set <M-K>=K
-"set <M-b>=b
-"set <M-w>=w
-"set <M-g>=g
-"set <M-e>=e
-"set <M-N>=N
-"set <M-n>=n
-"set <M-,>=,
-"set <M-.>=.
-"set <M-=>==
-"set <M-->=-
-"set <M-I>=I
-"set <M-A>=A
-"set <M-@>=@
-"set <M-?>=?
-"set <M-C>=C
-"set <M-c>=c
-"set <M-O>=O
-"set <M-o>=o
-"set <M-H>=H
-"set <M-L>=L
-"set <M-h>=h
-"set <M-l>=l
-"set <M-t>=t
-"set <M-T>=T
-"set <M-p>=p
-"set <M-P>=P
+set <M-J>=J
+set <M-j>=j
+set <M-k>=k
+set <M-K>=K
+set <M-b>=b
+set <M-w>=w
+set <M-g>=g
+set <M-e>=e
+set <M-N>=N
+set <M-n>=n
+set <M-,>=,
+set <M-.>=.
+set <M-=>==
+set <M-->=-
+set <M-I>=I
+set <M-A>=A
+set <M-@>=@
+set <M-?>=?
+set <M-C>=C
+set <M-c>=c
+set <M-O>=O
+set <M-o>=o
+set <M-H>=H
+set <M-L>=L
+set <M-h>=h
+set <M-l>=l
+set <M-t>=t
+set <M-T>=T
+set <M-p>=p
+set <M-P>=P
 
 " Timeouts
 " Rationale: By default, ttimeout is disabled (-1), which can cause problems

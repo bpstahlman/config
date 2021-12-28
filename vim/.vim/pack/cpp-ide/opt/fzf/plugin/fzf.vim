@@ -8,7 +8,8 @@ let s:fzf_config = {
 			\ 'very_magic': 1,
 			\ 'ignore_glob_case': 1,
 			\ 'ignore_case': 0,
-			\ 'nul_separate_paths': 1
+			\ 'nul_separate_paths': 1,
+			\ 'get_files_timeout': 30
 \ }
 
 fu! s:calculate_flf_path(cfg)
@@ -42,7 +43,6 @@ fu! s:create_fzf_cache(...)
 	" TODO: Put options under opts or something.
 	" TODO: Don't need dict for file_list_file.
 	let cache = {
-				\ 'dirty': 1,
 				\ 'files': [],
 				\ 'file_list_file': s:calculate_flf_path(cfg),
 				\ 'paths': [],
@@ -50,13 +50,14 @@ fu! s:create_fzf_cache(...)
 				\ 'very_magic': get(cfg, 'very_magic', s:fzf_config.very_magic),
 				\ 'ignore_glob_case': get(cfg, 'ignore_glob_case', s:fzf_config.ignore_glob_case),
 				\ 'ignore_case': get(cfg, 'ignore_case', s:fzf_config.ignore_case),
-				\ 'nul_separate_paths' : get(cfg, 'nul_separate_paths', s:fzf_config.very_magic),
+				\ 'nul_separate_paths': get(cfg, 'nul_separate_paths', s:fzf_config.very_magic),
+				\ 'get_files_timeout': get(cfg, 'get_files_timeout', s:fzf_config.get_files_timeout),
 				\ 'clean' : {}
 				\ }
 
 	" Display the cache.
 	fu! cache.show_cache(bang) closure
-		echo "Cache is" self.dirty ? "dirty" : "clean"
+		echo "Cache is" self.files_mode == "clean" ? "clean" : "dirty"
 		echo "file list:" self.file_list_file
 		echo "file listing command:" self.get_files_cmd()
 		echo "paths:" self.paths
@@ -103,50 +104,141 @@ fu! s:create_fzf_cache(...)
 		endif
 	endfu
 	fu! cache.get_files_cmd() closure
-		if !self.dirty
+		if self.files_mode == "clean"
 			return self.clean.get_files_cmd
 		endif
-		" TODO: Consider just returning cache if up-to-date...
-		let globs = self.globs
-					\ ->mapnew({i, s -> '-g ' . shellescape(s)})->join()
-		let paths = self.paths
-					\ ->mapnew({i, s -> shellescape(s)})->join()
+		" Note: Do NOT 'shellescape' the args: not only is it unnecessary, it will
+		" actually break things because Vim passes the args directly to the
+		" invoked executable, not to the shell. We do, however, need to escape
+		" spaces and backslashes to ensure that Vim correctly splits the line into
+		" arguments.
 		let self.clean.get_files_cmd = printf('rg --files %s %s %s',
 					\ self.ignore_glob_case ? '--glob-case-insensitive' : '',
-					\ globs,
-					\ paths)
+					\ self.globs
+					\ ->mapnew({i, s -> '-g ' . escape(s, ' \')})->join(),
+					\ self.paths
+					\ ->mapnew({i, s -> escape(s, ' \')})->join())
 		return self.clean.get_files_cmd
 	endfu
-	fu! cache.refresh(...) closure
-		let force = a:0 && a:1
-		call s:Log("Refreshing cache force=%s dirty=%s...", force, self.dirty)
-		if force || self.dirty
-			" Get the file list
-			let get_files_cmd = self.get_files_cmd()
-			call s:Log("Reading raw file list: %s", get_files_cmd)
-			let self.files = get_files_cmd->systemlist()
-			call s:Log("Writing file list to file: %s", self.file_list_file.path)
-			call writefile(
-						\ (self.nul_separate_paths
-						\ ? [self.files->join("\n")]
-						\ : self.files), self.file_list_file.path)
-			let self.dirty = 0
+	fu! cache.is_null_job() closure
+		return !self->has_key('files_job')
+	endfu
+	fu! cache.handle_files_gotten(ch, msg) closure
+		let info = job_info(self.files_job)
+		if info.status == "fail" || info.status == "dead" && info.exitval
+			if info.status == "fail"
+				echomsg "get_files job failed to start!"
+			else
+				echomsg "get_files job exited with error!"
+			endif
+			let self.files_mode = "dirty"
+		else
+			let self.files_mode = "clean"
 		endif
 	endfu
+	fu! cache.start_getting_files() closure
+		call self.mark_dirty(0)
+		" TODO: Save the job somewhere.
+		let get_files_cmd = self.get_files_cmd()
+		call s:Log("files cmd: %s", get_files_cmd)
+		call s:Log("output file: %s", self.file_list_file.path)
+    let self.files_job = job_start(get_files_cmd,
+					\ {"callback": function(self.handle_files_gotten, [], self),
+					\  "out_io": "file",
+					\  "out_name": self.file_list_file.path}
+					\ )
+		let self.files_mode = "running"
+	endfu
+	fu! cache.await_files_stopped()
+	endfu
+	" The variadic args allow this method to be invoked as job callback. Note
+	" that we ignore the channel and msg args because the method does its own
+	" checking.
+	" Return the current files_mode for convenience.
+	fu! cache.await_files_gotten(...) closure
+		let start_time = reltime()
+		" Wait for job to stop running or timeout.
+		while self.files_job->job_status() == "run"
+					\ && reltimefloat(reltime(start_time)) < self.get_files_timeout
+		endwhile
+		" See what happened.
+		let info = self.files_job->job_info()
+		if info.status == "dead"
+			if info.exitval
+				echomsg "Job finished with error:" info.exitval
+				" Design Decision: Don't auto-restart; let restart be triggered
+				" lazily to avoid a barrage of failed calls.
+				let self.files_mode = "dirty"
+			else
+				let self.files_mode = "clean"
+			endif
+		else " fail or timeout
+			if info.status == "fail"
+				echomsg "Job failed to start!"
+			else " run = timeout
+				echomsg "Job timed out!"
+			endif
+			let self.files_mode = "error"
+		endif
+		return self.files_mode
+	endfu
+	fu! cache.stop_getting_files() closure
+		if self.is_null_job()
+			let self.files_mode = "dirty"
+			return
+		endif
+		let result = self.files_job->job_stop("term") ||
+					\ self.files_job->job_stop("kill")
+		if !result
+			" Unable to stop job
+			let self.files_mode = "error"
+		else
+			let status = self.files_job->job_status()
+			if status == "dead" || status == "fail"
+				" Note: Caller meant to kill the job, so ignore error codes and/or
+				" failure to start.
+				let self.files_mode = "dirty"
+			else
+				" Job shouldn't be running.
+				let self.files_mode = "error"
+			endif
+		endif
+		if self.files_mode == "error"
+			echomsg "Unable to stop job!"
+		endif
+	endfu
+	fu! cache.ensure_fresh_files(...) closure
+		if self.files_mode == "clean"
+			return
+		elseif self.files_mode == "dirty" || self.files_mode == "error"
+			call self.start_getting_files()
+		endif
+		call self.await_files_gotten()
+	endfu
+	fu! cache.mark_dirty(autostart) closure
+		let self.files_mode = "dirty"
+		" Question: Should we avoid this call if self.files_mode indicates it's
+		" unnecessary?
+		call self.stop_getting_files()
+		if a:autostart
+			call self.start_getting_files()
+		endif
+	endfu
+	" FIXME: Should this clear filters? Auto-restart?
 	fu! cache.clear() closure
-		let self.dirty = 1
+		call self.mark_dirty(1)
 	endfu
 	" TODO: Consider whether this should be combined with previous somehow...
 	fu! cache.clear_filters() closure
-		let self.dirty = 1
 		let self.paths = []
 		let self.globs = []
+		call self.mark_dirty(0)
 	endfu
 	" TODO: One set of methods should handle paths and globs.
 	fu! cache.add_paths(...) closure
 		let self.paths = self.paths->extend(
 			\ a:000[:]->filter({idx, path -> self.paths->index(path) < 0}))
-		let self.dirty = 1
+		call self.mark_dirty(1)
 	endfu
 	fu! cache.remove_paths(bang, ...) closure
 		if (!a:0)
@@ -161,44 +253,50 @@ fu! s:create_fzf_cache(...)
 			let self.paths = self.paths->filter({
 						\ path -> a:000->index(path) >= 0 })
 		endif
-		let self.dirty = 1
+		call self.mark_dirty(1)
 	endfu
-	" Interactive front end for glob removal
-	fu! cache.remove_globs_ui() closure
+	" Interactive front end for glob/patt removal
+	fu! cache.remove_globs_or_paths_ui(is_glob) closure
+		let which = a:is_glob ? 'globs' : 'paths'
+
 		" Create list of removable globs.
 		call fzf#run(fzf#wrap({
-					\ 'source': self.globs[:],
-					\ 'sinklist': { globs ->
-					\ call(function(self.remove_globs, [0], self), globs)}}))
+					\ 'source': self[which][:],
+					\ 'sinklist': { globs_or_paths ->
+					\ call(function(self.remove_globs_or_paths, [a:is_glob, 0], self),
+					\ globs_or_paths)}}))
 	endfu
 	" Leading ^ means prepend.
 	" Bang means clear existing
-	fu! cache.add_globs(bang,...) closure
+	fu! cache.add_globs_or_paths(is_glob, bang,...) closure
+		let which = a:is_glob ? 'globs' : 'paths'
 		if a:bang
-			let self.globs = []
+			let self[which] = []
 		endif
 		let prepend = a:000->len() && a:000[0] == '^'
 		" Append or prepend patterns not already in list.
-		let self.globs = self.globs->extend(
-			\ a:000[:]->filter({idx, patt -> self.globs->index(patt) < 0}),
-			\ prepend ? 0 : self.globs->len())
-		let self.dirty = 1
+		let self[which] = self[which]->extend(
+			\ a:000[:]->filter({idx, patt -> self[which]->index(patt) < 0}),
+			\ prepend ? 0 : self[which]->len())
+		call self.mark_dirty(1)
 	endfu
-	fu! cache.remove_globs(bang, ...) closure
+	fu! cache.remove_globs_or_paths(is_glob, bang, ...) closure
+		let which = a:is_glob ? 'globs' : 'paths'
 		if (!a:0)
 			if a:bang
 				" Remove all globs.
-				let self.globs = []
+				let self[which] = []
 			else
 				echoerr "Must provide at least one glob if <bang> is not provided."
+				return
 			endif
 		else
 			" Remove globs provided as input.
 			let globs = a:000
-			let self.globs = self.globs->filter({
-						\ i, glob -> globs->index(glob) < 0 })
-			let self.dirty = 1
+			let self[which] = self[which]->filter({
+						\ i, g_or_p -> globs->index(g_or_p) < 0 })
 		endif
+		call self.mark_dirty(1)
 	endfu
 	return cache
 endfu
@@ -214,18 +312,22 @@ fu! s:fcache()
 	return s:fcache
 endfu
 " Make sure the fcache is cleaned up at shutdown.
+" TODO: Once I add stack capability, this will need to be a cleanup function.
 au! VimLeave s:fcache->destroy()
 
 	" Map for quickly finding a file to edit.
 nmap <leader>e
-	\ :call <SID>fcache().refresh() \|
+	\ :call <SID>fcache().ensure_fresh_files() \|
 	\ :call fzf#run(fzf#wrap({
+	\   'multi': 1,
 	\   'source': <SID>fcache().get_edit_source_cmd(),
 	\   'sink': 'e'
 	\ }))<cr>
 
 nmap <leader>d
-	\ : call <SID>fcache().remove_globs_ui()<cr>
+	\ : call <SID>fcache().remove_globs_or_paths_ui(1)<cr>
+nmap <leader>D
+	\ : call <SID>fcache().remove_globs_or_paths_ui(0)<cr>
 
 " TODO: Consider completion of submodule names.
 com -bang -nargs=0 Show call s:fcache().show_cache(<bang>0)
@@ -234,15 +336,15 @@ com -bang RebuildCache
 			\ let s:fcache = s:create_fzf_cache()
 com -bang ClearCache call s:fcache().clear()
 com ClearFilters call s:fcache().clear_filters()
-com -nargs=+ AddPaths call s:fcache().add_paths(<f-args>)
-com -bang -nargs=* RemovePaths call s:fcache.remove_paths(<bang>0, <f-args>)
-com -bang -nargs=+ AddGlobs call s:fcache().add_globs(<bang>0, <f-args>)
-com -nargs=+ RemoveGlobs call s:fcache().remove_globs(<bang>0, <f-args>)
+com -bang -nargs=+ AddPaths call s:fcache().add_globs_or_paths(0, <bang>0, <f-args>)
+com -bang -nargs=* RemovePaths call s:fcache.remove_globs_or_paths(0, <bang>0, <f-args>)
+com -bang -nargs=+ AddGlobs call s:fcache().add_globs_or_paths(1, <bang>0, <f-args>)
+com -nargs=+ RemoveGlobs call s:fcache().remove_globs_or_paths(1, <bang>0, <f-args>)
 com LoggingOn let s:log_level = 1
 com LoggingOff let s:log_level = 0
 
 command! -nargs=+ Grep
-	\ :call <SID>fcache().refresh() |
+	\ :call <SID>fcache().ensure_fresh_files() |
 	\ :call fzf#run(fzf#wrap({
 	\   'source': 'xargs -0a ' . s:fcache.file_list_file.path . ' grep -E ' . <q-args>
 	\   'sink': 'e'
@@ -252,7 +354,7 @@ command! -nargs=+ Grep
 " fzf --read0
 " xargs -0
 command! -bang -nargs=* Rg
-	\ call s:fcache.refresh()
+	\ call s:fcache.ensure_fresh_files()
 	\ | call fzf#vim#grep(s:fcache.get_rg_cmd(<f-args>),
 	\   1,
   \   <bang>0 ? fzf#vim#with_preview('up:60%')
