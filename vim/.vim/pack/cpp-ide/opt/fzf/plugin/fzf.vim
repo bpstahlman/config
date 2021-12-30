@@ -5,10 +5,8 @@ let s:log_level = 0
 " Default configuration
 let s:fzf_config = {
 			\ 'file_list_file': '',
-			\ 'very_magic': 1,
 			\ 'ignore_glob_case': 1,
 			\ 'ignore_case': 0,
-			\ 'nul_separate_paths': 1,
 			\ 'get_files_timeout': 30
 \ }
 
@@ -47,17 +45,15 @@ fu! s:create_fzf_cache(...)
 				\ 'file_list_file': s:calculate_flf_path(cfg),
 				\ 'paths': [],
 				\ 'globs': [],
-				\ 'very_magic': get(cfg, 'very_magic', s:fzf_config.very_magic),
 				\ 'ignore_glob_case': get(cfg, 'ignore_glob_case', s:fzf_config.ignore_glob_case),
 				\ 'ignore_case': get(cfg, 'ignore_case', s:fzf_config.ignore_case),
-				\ 'nul_separate_paths': get(cfg, 'nul_separate_paths', s:fzf_config.very_magic),
 				\ 'get_files_timeout': get(cfg, 'get_files_timeout', s:fzf_config.get_files_timeout),
 				\ 'clean' : {}
 				\ }
 
 	" Display the cache.
 	fu! cache.show_cache(bang) closure
-		echo "Cache is" self.files_mode == "clean" ? "clean" : "dirty"
+		echo "cache status:" self.files_mode == "clean" ? "clean" : "dirty"
 		echo "file list:" self.file_list_file
 		echo "file listing command:" self.get_files_cmd()
 		echo "paths:" self.paths
@@ -77,19 +73,26 @@ fu! s:create_fzf_cache(...)
 			endif
 		endfor
 	endfu
-	fu! cache.get_rg_cmd(...) closure
-		" TODO: Use option to decide whether to use xargs or not...
-		let ret = printf('xargs -0a %s'
-		\   . ' rg --column --line-number --no-heading --color=always %s %s'
+	" Return search command for the indicated search program, which must be one
+	" of 'grep', 'rg'
+	fu! cache.get_search_cmd(program,...) closure
+		" TODO: Make --smart-case a script option?
+		let leading_opts =
+					\ (self.ignore_case ? '--ignore-case' : '')
+					\ . (a:program == 'rg'
+					\ ? '--column --line-number --no-heading --color=always --smart-case'
+					\ : '--line-number --with-filename --extended-regexp --color')
+		let ret = printf('xargs -a %s %s %s %s'
 		\   , s:fcache.file_list_file.path
+		\   , a:program
+		\   , leading_opts
 		\   , a:000->mapnew({i, p -> shellescape(p)})->join())
-		call s:Log("Ripgrep command: %s", ret)
+		call s:Log("Search command: %s", ret)
 		return ret
 	endfu
+	" Return command 
 	fu! cache.get_edit_source_cmd() closure
-		" TODO: Is nul-separation needed? I'm thinking not since xargs reads stdin...
 		return 'cat ' . self.file_list_file.path
-					\ . (self.nul_separate_paths ? ' | tr \\0 \\n' : '')
 	endfu
 	fu! cache.destroy() closure
 		echomsg "Bye!"
@@ -119,6 +122,26 @@ fu! s:create_fzf_cache(...)
 					\ self.paths
 					\ ->mapnew({i, s -> escape(s, ' \')})->join())
 		return self.clean.get_files_cmd
+	endfu
+	fu! cache.search_files(program, bang, ...)
+		call s:fcache().ensure_fresh_files()
+		let cmd = self.get_search_cmd->call([a:program] + a:000, self)
+		if 1
+			call fzf#vim#grep(cmd, 1, fzf#vim#with_preview(), a:bang)
+		else
+			" FIXME! Remove this arm...
+			call s:Log("File search command: %s", cmd)
+			let wrapopts = fzf#wrap({
+						\ 'source': cmd,
+						\ 'options': ['--ansi']})
+			if a:bang
+				"let wrapopts.options .= " " . fzf#vim#with_preview().options
+							"\ ->mapnew({i, v -> shellescape(v)})->join(" ")
+				let wrapopts = fzf#vim#with_preview(wrapopts)
+			endif
+			call s:Log("Calling fzf#run: %s", string(wrapopts))
+			call fzf#run(wrapopts)
+		endif
 	endfu
 	fu! cache.is_null_job() closure
 		return !self->has_key('files_job')
@@ -183,12 +206,17 @@ fu! s:create_fzf_cache(...)
 		return self.files_mode
 	endfu
 	fu! cache.stop_getting_files() closure
-		if self.is_null_job()
-			let self.files_mode = "dirty"
-			return
+		if self.is_null_job() | return | endif
+		" Request non-forcible stop and wait to see if process complies in a
+		" timely manner...
+		let result = self.files_job->job_stop("term")
+		let ts = reltime()
+		while reltimefloat(reltime(ts)) < 2 && self.files_job->job_status() == "run"
+		endwhile
+		if self.files_job->job_status() == "run"
+			" Process is taking too long...
+			let result = self.files_job->job_stop("kill")
 		endif
-		let result = self.files_job->job_stop("term") ||
-					\ self.files_job->job_stop("kill")
 		if !result
 			" Unable to stop job
 			let self.files_mode = "error"
@@ -343,26 +371,13 @@ com -nargs=+ RemoveGlobs call s:fcache().remove_globs_or_paths(1, <bang>0, <f-ar
 com LoggingOn let s:log_level = 1
 com LoggingOff let s:log_level = 0
 
-command! -nargs=+ Grep
-	\ :call <SID>fcache().ensure_fresh_files() |
-	\ :call fzf#run(fzf#wrap({
-	\   'source': 'xargs -0a ' . s:fcache.file_list_file.path . ' grep -E ' . <q-args>
-	\   'sink': 'e'
-	\ }))<cr>
-
-" TODO: Make vim output with NULs as line sep.
-" fzf --read0
-" xargs -0
+" Grep commands
 command! -bang -nargs=* Rg
-	\ call s:fcache.ensure_fresh_files()
-	\ | call fzf#vim#grep(s:fcache.get_rg_cmd(<f-args>),
-	\   1,
-  \   <bang>0 ? fzf#vim#with_preview('up:60%')
-  \           : fzf#vim#with_preview('right:50%:hidden', '?'),
-  \   <bang>0)
+	\ call s:fcache.search_files('rg', <bang>0, <f-args>)
+command! -bang -nargs=* Grep
+	\ call s:fcache.search_files('grep', <bang>0, <f-args>)
 
 " Ancillary functions
-
 fu! s:Log(fmt, ...)
 	if s:log_level > 0
 		echomsg call('printf', [a:fmt] + a:000)
@@ -375,4 +390,5 @@ if TEST
 	AddGlobs gpc/** ida/**
 	AddGlobs !gpc/base/ !ida/common
 endif
+
 
