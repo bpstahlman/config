@@ -108,6 +108,45 @@ call plug#end()
 " Easymotion
 map <Space> <Plug>(easymotion-prefix)
 
+" Easymotion setup
+
+" Design Decision: Plugin author recommends using `nmap' for overwin versions
+" of standard commands. I don't like this because overwin can slow down the
+" common case of searching in current window. My solution is to double the
+" leading space for overwin.
+map <space><space>w <Plug>(easymotion-overwin-w)
+map <space><space>W <Plug>(easymotion-overwin-W)
+map <space><space>w <Plug>(easymotion-overwin-w)
+map <space><space>W <Plug>(easymotion-overwin-W)
+ 
+<Plug>(easymotion-f) | <Leader>f{char}
+<Plug>(easymotion-F) | <Leader>F{char}
+<Plug>(easymotion-t) | <Leader>t{char}
+<Plug>(easymotion-T) | <Leader>T{char}
+<Plug>(easymotion-w) | <Leader>w
+<Plug>(easymotion-W) | <Leader>W
+<Plug>(easymotion-b) | <Leader>b
+<Plug>(easymotion-B) | <Leader>B
+<Plug>(easymotion-e) | <Leader>e
+<Plug>(easymotion-E) | <Leader>E
+<Plug>(easymotion-ge)| <Leader>ge
+<Plug>(easymotion-gE)| <Leader>gE
+<Plug>(easymotion-j) | <Leader>j
+<Plug>(easymotion-k) | <Leader>k
+<Plug>(easymotion-n) | <Leader>n
+<Plug>(easymotion-N) | <Leader>N
+<Plug>(easymotion-s) | <Leader>s
+
+" Single-line versions of f/F/t/T/s
+" Note: s is bidir version of f/F
+map <M-s> <Plug>(easymotion-sl)
+map <M-f> <Plug>(easymotion-fl)
+map <M-F> <Plug>(easymotion-Fl)
+map <M-t> <Plug>(easymotion-tl)
+map <M-T> <Plug>(easymotion-Tl)
+
+let g:EasyMotion_startofline = 0 " keep cursor column when JK motion
+
 " Try to get sensible cursor shape in a terminal.
 if &term =~ '^xterm\|rxvt'
   " blinking vertical bar
@@ -147,7 +186,49 @@ if g:cfg_completion_plugin == 'vim-lsp'
 elseif g:cfg_completion_plugin == 'ycm'
 endif
 
-" fzf config
+" Allow use of meta keys in terminals.
+" Explanation: When Vim processes a map lhs such as <M-j>, it converts it to
+" <Esc>j. But the terminal code received for a pressed <M-j> will actually be
+" metafied j, which needs to be converted to <Esc>j for the mapping to work.
+" Caveat: The following won't work in terminals:
+" <M-[> <M->>
+" Note that while <M-[> makes sense due to its use in terminal escape
+" sequences, I'm not sure why <M->> doesn't work.
+set <M-F>=F
+set <M-f>=f
+set <M-H>=H
+set <M-h>=h
+set <M-J>=J
+set <M-j>=j
+set <M-k>=k
+set <M-K>=K
+set <M-b>=b
+set <M-w>=w
+set <M-g>=g
+set <M-e>=e
+set <M-N>=N
+set <M-n>=n
+set <M-,>=,
+set <M-.>=.
+set <M-=>==
+set <M-->=-
+set <M-I>=I
+set <M-A>=A
+set <M-@>=@
+set <M-?>=?
+set <M-C>=C
+set <M-c>=c
+set <M-O>=O
+set <M-o>=o
+set <M-L>=L
+set <M-h>=h
+set <M-l>=l
+set <M-s>=s
+set <M-S>=S
+set <M-t>=t
+set <M-T>=T
+set <M-p>=p
+set <M-P>=P
 
 finish
 
@@ -231,44 +312,6 @@ let g:slimv_swank_cmd = '! xterm -e sbcl --load /home/bstahlman/.vim/bundle/slim
 "let g:slimv_swank_cmd = '! SWANK_PORT=4005 xterm -iconic -e "/usr/bin/clisp" -i "/home/bstahlman/.vim/bundle/slimv/slime/start-swank.lisp" &
 
 " Vim-sexp
-" Allow use of meta keys in terminals.
-" Explanation: When Vim processes a map lhs such as <M-j>, it converts it to
-" <Esc>j. But the terminal code received for a pressed <M-j> will actually be
-" metafied j, which needs to be converted to <Esc>j for the mapping to work.
-" Caveat: The following won't work in terminals:
-" <M-[> <M->>
-" Note that while <M-[> makes sense due to its use in terminal escape
-" sequences, I'm not sure why <M->> doesn't work.
-set <M-J>=J
-set <M-j>=j
-set <M-k>=k
-set <M-K>=K
-set <M-b>=b
-set <M-w>=w
-set <M-g>=g
-set <M-e>=e
-set <M-N>=N
-set <M-n>=n
-set <M-,>=,
-set <M-.>=.
-set <M-=>==
-set <M-->=-
-set <M-I>=I
-set <M-A>=A
-set <M-@>=@
-set <M-?>=?
-set <M-C>=C
-set <M-c>=c
-set <M-O>=O
-set <M-o>=o
-set <M-H>=H
-set <M-L>=L
-set <M-h>=h
-set <M-l>=l
-set <M-t>=t
-set <M-T>=T
-set <M-p>=p
-set <M-P>=P
 
 " Timeouts
 " Rationale: By default, ttimeout is disabled (-1), which can cause problems
