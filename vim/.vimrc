@@ -3,6 +3,9 @@
 set nocompatible
 source $VIMRUNTIME/vimrc_example.vim
 
+" Allow save/restore of global vars.
+set viminfo='100,<50,s10,h,!
+
 " Allow jumping to buffer in other window with :sb
 set switchbuf=useopen
 
@@ -118,24 +121,6 @@ map <space><space>w <Plug>(easymotion-overwin-w)
 map <space><space>W <Plug>(easymotion-overwin-W)
 map <space><space>w <Plug>(easymotion-overwin-w)
 map <space><space>W <Plug>(easymotion-overwin-W)
- 
-<Plug>(easymotion-f) | <Leader>f{char}
-<Plug>(easymotion-F) | <Leader>F{char}
-<Plug>(easymotion-t) | <Leader>t{char}
-<Plug>(easymotion-T) | <Leader>T{char}
-<Plug>(easymotion-w) | <Leader>w
-<Plug>(easymotion-W) | <Leader>W
-<Plug>(easymotion-b) | <Leader>b
-<Plug>(easymotion-B) | <Leader>B
-<Plug>(easymotion-e) | <Leader>e
-<Plug>(easymotion-E) | <Leader>E
-<Plug>(easymotion-ge)| <Leader>ge
-<Plug>(easymotion-gE)| <Leader>gE
-<Plug>(easymotion-j) | <Leader>j
-<Plug>(easymotion-k) | <Leader>k
-<Plug>(easymotion-n) | <Leader>n
-<Plug>(easymotion-N) | <Leader>N
-<Plug>(easymotion-s) | <Leader>s
 
 " Single-line versions of f/F/t/T/s
 " Note: s is bidir version of f/F
@@ -146,6 +131,29 @@ map <M-t> <Plug>(easymotion-tl)
 map <M-T> <Plug>(easymotion-Tl)
 
 let g:EasyMotion_startofline = 0 " keep cursor column when JK motion
+
+" fzf config
+let g:fzf_config_vim = #{}
+fu! g:fzf_config_vim.get_files_cmd() dict
+	return ['find', '-name', '*.vim']
+endfu
+
+" Stellar
+" Just use the default get_files_cmd, which takes globs/paths into account.
+let g:fzf_config_stellar = #{}
+
+let g:fzf_config_c = #{}
+fu! g:fzf_config_c.get_files_cmd() dict
+	" Note: Either of these approaches works: the string approach relies on
+	" Vim splitting args at whitespace.
+	return "find -name *.c -o -name *.h"
+	"return ['find', '-name', '*.c', '-o', '-name', '*.h']
+endfu
+
+let g:fzf_config_cpp = #{}
+fu! g:fzf_config_cpp.get_files_cmd() dict
+	return "find -name *.cpp -o -name *.h -o -name *.hpp"
+endfu
 
 " Try to get sensible cursor shape in a terminal.
 if &term =~ '^xterm\|rxvt'
