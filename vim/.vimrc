@@ -1,7 +1,9 @@
 " Include some default settings from the Vim example.
 " Note: Intentionally not doing 'behave mswin'
 set nocompatible
-source $VIMRUNTIME/vimrc_example.vim
+if !has('nvim')
+	source $VIMRUNTIME/vimrc_example.vim
+endif
 
 " Allow save/restore of global vars.
 set viminfo='100,<50,s10,h,!
@@ -38,7 +40,12 @@ endif
 " TODO: Perhaps a chooser function that considers term/gui, even
 " differentiating between different terminals, for which I may use different
 " (terminal) colorschemes.
-colorscheme default
+
+" Font
+if &term == 'builtin_gui'
+	colorscheme evening
+	set guifont=Fira_Code_Retina:h10:W450:cANSI:qDRAFT
+endif
 
 " This should be the Vim default, but isn't...
 filetype plugin indent on
